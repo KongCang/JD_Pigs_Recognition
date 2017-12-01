@@ -32,81 +32,6 @@ def get_data_from_hdf5(file_local):
     return data_, labels_
 
 
-def residual_unit(x, nb_filters, filters_diff=False):
-    x = Activation('relu')(x)
-
-    if filters_diff:
-        residual = Conv2D(nb_filters, (1, 1), padding='same', use_bias=False)(x)
-        residual = BatchNormalization()(residual)
-    else:
-        residual = x
-
-    x = SeparableConv2D(nb_filters, (3, 3), padding='same', use_bias=False)(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-    x = SeparableConv2D(nb_filters, (3, 3), padding='same', use_bias=False)(x)
-    x = BatchNormalization()(x)
-
-    x = layers.add([x, residual])
-
-    return x
-
-
-def trunk(x, repeat, nb_filters, name):
-    for i in range(repeat):
-        residual = x
-
-        x = Activation('relu')(x)
-        x = SeparableConv2D(nb_filters, (3, 3), padding='same', use_bias=False, name=name+str(i)+'_SepConv1')(x)
-        x = BatchNormalization()(x)
-        x = Activation('relu')(x)
-        x = SeparableConv2D(nb_filters, (3, 3), padding='same', use_bias=False, name=name+str(i)+'SepConv2')(x)
-        x = BatchNormalization()(x)
-        x = Activation('relu')(x)
-        x = SeparableConv2D(nb_filters, (3, 3), padding='same', use_bias=False, name=name+str(i)+'SepConv3')(x)
-        x = BatchNormalization()(x)
-
-        x = layers.add([x, residual])
-    return x
-
-
-def mask(x, nb_filters, name):
-    # downsample 1
-    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name=name+'downsample_1')(x)
-    x = residual_unit(x, nb_filters)
-    s1= residual_unit(x, nb_filters)
-
-    # downsample 2
-    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name=name+'downsample_2')(x)
-    x = residual_unit(x, nb_filters)
-    s2= residual_unit(x, nb_filters)
-
-    # downsample 3
-    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name=name+'downsample_3')(x)
-    x = residual_unit(x, nb_filters)
-    x = residual_unit(x, nb_filters)
-
-    # upsample 3
-    x = UpSampling2D(size=(2, 2))(x)
-    x = layers.add([x, s2])
-    x = residual_unit(x, nb_filters)
-
-    # upsample 2
-    x = UpSampling2D(size=(2, 2))(x)
-    x = layers.add([x, s1])
-    x = residual_unit(x, nb_filters)
-
-    # upsample 1
-    x = UpSampling2D(size=(2, 2))(x)
-    x = Conv2D(nb_filters, (1, 1), padding='same', use_bias=False)(x)
-    x = Conv2D(nb_filters, (1, 1), padding='same', use_bias=False)(x)
-
-    # sigmoid
-    x = Activation('sigmoid')(x)
-
-    return x
-
-
 # define train model
 # Input (384, 384, 3)
 # output (30, 1)
@@ -171,16 +96,10 @@ def model_class1(num_classes):
     x = SeparableConv2D(2048, (3, 3), padding='same', use_bias=False)(x)
     x = BatchNormalization()(x)
     x = MaxPooling2D((3, 3), strides=(2, 2), padding='same')(x)
-    # x = Flatten()(x)
-    # x = Dropout(0.5)(x)
 
     x = Conv2D(num_classes, (3, 3), padding='same')(x)
     x = GlobalAveragePooling2D()(x)
     output_layer = Activation('softmax', name='predictions')(x)
-
-    # x = Flatten()(x)
-    # x = Dropout(0.5)(x)
-    # x = Dense(512, activation='elu')(x)
 
     # model
     model_ = Model(inputs=[input_tensor], outputs=output_layer)
